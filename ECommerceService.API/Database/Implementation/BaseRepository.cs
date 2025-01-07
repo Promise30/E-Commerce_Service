@@ -14,10 +14,10 @@ namespace ECommerceService.API.Database.Implementation
         private readonly DbSet<T> _dbSet;
         private readonly ECommerceDbContext _context;
 
-        public BaseRepository(ECommerceDbContext context, DbSet<T> dbSet, ILogger<BaseRepository<T, Tkey>> logger)
+        public BaseRepository(ECommerceDbContext context, ILogger<BaseRepository<T, Tkey>> logger)
         {
             _context = context;
-            _dbSet = dbSet;
+            _dbSet = context.Set<T>();
             _logger = logger;
         }
 
