@@ -23,6 +23,6 @@ namespace ECommerceService.API.Database.Interface
         Task<PagedList<T>> GetAllPaginatedAsync(RequestParameters parameter, SortParameters sortParams, Expression<Func<T, bool>> filter = null);
         Task<PagedList<T>> GetAllPaginatedAsync(RequestParameters parameter, List<T> entity, Expression<Func<T, bool>> filter = null);
 
-        Task<int> SaveChangesAsync(CancellationToken ct);
+        Task SaveChangesAsync(CancellationToken ct = default);
     }
 }

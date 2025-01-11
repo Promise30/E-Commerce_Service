@@ -124,9 +124,9 @@ namespace ECommerceService.API.Database.Implementation
                 return default(Tkey);
             return entity.Id;   
         }
-        public async Task<int> SaveChangesAsync(CancellationToken ct)
+        public async Task SaveChangesAsync(CancellationToken ct = default)
         {
-            return await _context.SaveChangesAsync(ct);
+             await _context.SaveChangesAsync(ct);
         }
         public Task UpdateAsync(T entity)
         {
