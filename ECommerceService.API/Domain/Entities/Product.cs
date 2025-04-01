@@ -1,6 +1,6 @@
 ﻿namespace ECommerceService.API.Domain.Entities
 {
-    public class Product : Entity<Guid>
+    public class Product : Entity<int>
     {
         public string Name { get; set; }
         public string? Description { get; set; }
@@ -9,7 +9,9 @@
         public decimal Price { get; set; }
         public int CategoryId { get; set; }
         public virtual Category Category { get; set; }
-        public Product(Guid id) : base(id)
+        public virtual ICollection<CartItem> CartItems { get; set; } = new List<CartItem>();
+        public virtual ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
+        public Product(int id) : base(id)
         {
         }
         public Product()

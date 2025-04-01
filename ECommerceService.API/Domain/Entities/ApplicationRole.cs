@@ -2,7 +2,7 @@
 
 namespace ECommerceService.API.Domain.Entities
 {
-    public class ApplicationRole : IdentityRole<Guid>
+    public class ApplicationRole : IdentityRole
     {
         public string? Description { get; set; }
         public DateTimeOffset DateCreated { get; set; }
