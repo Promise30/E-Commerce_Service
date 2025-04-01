@@ -1,17 +1,14 @@
 using ECommerceService.API.Application.Implementation;
 using ECommerceService.API.Application.Interfaces;
 using ECommerceService.API.Data;
-using ECommerceService.API.Database.Implementation;
-using ECommerceService.API.Database.Interface;
-using ECommerceService.API.Domain.Entities;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Identity;
+using ECommerceService.API.Extensions;
+using ECommerceService.API.Helpers;
+using Hangfire;
+using HealthChecks.UI.Client;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
+using PayStack.Net;
 using Serilog;
-using System.Reflection;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,108 +16,76 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Host.UseSerilog((context, configuration) =>
     configuration.ReadFrom.Configuration(context.Configuration));
+builder.Services.AddLogging(loggingBuilder =>
+{
+    loggingBuilder.AddConsole();
+    loggingBuilder.AddDebug();
+    loggingBuilder.AddSerilog();
+});
 builder.Services.AddRouting(opt =>
 {
     opt.LowercaseUrls = true;
     opt.LowercaseQueryStrings = true;
 });
 
+
 // Configure Swagger
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c=>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "ECommerceService.API",
-        Description = "API for ECommerceService",
-        Version = "v1"
-    });
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Description = "JWT Authorization header using the Bearer scheme. Example: \",\"Bearer {token}\"",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT"
-    });
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            new string[] {}
-        }
-    });
-    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-    c.IncludeXmlComments(xmlPath);
-
-});
+builder.Services.ConfigureSwagger();
 
 // Add configuration based on environment
 builder.Configuration
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
     .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
     .AddEnvironmentVariables();
+
 // Configure Automapper
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 
 // Configure Database
-builder.Services.AddDbContext<ECommerceDbContext>(options =>
-{
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
-});
-builder.Services.AddScoped(typeof(IBaseRepository<,>), typeof(BaseRepository<,>));
-builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
-builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.ConfigureDatabase(builder.Configuration);
+builder.Services.ConfigureRepository();
 
 // Services
-builder.Services.AddScoped<ICategoryService, CategoryService>();
-builder.Services.AddScoped<IProductService, ProductService>();
-builder.Services.AddScoped<IRoleManagementService, RoleManagementService>();
-builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+builder.Services.ConfigureHostingServices(builder.Configuration);
+builder.Services.AddHttpContextAccessor();
+
+// Add hangfire services
+builder.Services.ConfigureHangfire(builder.Configuration);
+
+// Add email service
+builder.Services.AddFluentEmail(builder.Configuration);
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 // Configure Identity
-builder.Services.AddIdentity<ApplicationUser, ApplicationRole>(options =>
+builder.Services.ConfigureIdentity();
+builder.Services.ConfigureAuthentication(builder.Configuration);
+
+// Configure HealthChecks
+builder.Services.ConfigureHealthChecks(builder.Configuration);
+//builder.Services.AddHealthChecksUI().AddInMemoryStorage();
+
+// configure paystack
+builder.Services.AddHttpClient("PayStackClient", options =>
 {
-    options.Password.RequireDigit = true;
-    options.Password.RequireLowercase = true;
-    options.Password.RequireUppercase = true;
-    options.Password.RequireNonAlphanumeric = true;
-    options.Password.RequiredLength = 6;
-    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
-    options.Lockout.MaxFailedAccessAttempts = 5;
-    options.Lockout.AllowedForNewUsers = true;
-    options.User.RequireUniqueEmail = true;
-})
-    .AddEntityFrameworkStores<ECommerceDbContext>()
-    .AddDefaultTokenProviders();
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-}).AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"],
-        ValidAudience = builder.Configuration["Jwt:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])),
-        ClockSkew = TimeSpan.Zero
-    };
+    options.BaseAddress = builder.Configuration.GetSection("PayStack:BaseUrl").Get<Uri>();
+    options.DefaultRequestHeaders.Add("Authorization", builder.Configuration["PayStack:SecretKey"]);
+    options.DefaultRequestHeaders.Add("Content-Type", "application/json");
+
 });
+
+builder.Services.AddScoped<PayStackApi>(ps =>
+    new PayStackApi(builder.Configuration["PayStack:SecretKey"]));
+
 var app = builder.Build();
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+
+using (var scope = app.Services.CreateScope())
+{
+    var serviceProvider = scope.ServiceProvider;
+    await RoleSeeder.SeedRole(serviceProvider);
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -128,20 +93,52 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
 // Apply migrations to database
-using(var service =  app.Services.GetRequiredService<IServiceScopeFactory>().CreateScope())
+using (var service = app.Services.GetRequiredService<IServiceScopeFactory>().CreateScope())
 {
     var context = service.ServiceProvider.GetRequiredService<ECommerceDbContext>();
-    context.Database.Migrate();
+    try
+    {
+        context.Database.Migrate();
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "An error occurred while migrating the database.");
+    }
 }
+
 app.UseSerilogRequestLogging();
 
 app.UseHttpsRedirection();
+
+app.UseHangfireDashboard();
 
 app.UseAuthentication();
 
 app.UseAuthorization();
 
 app.MapControllers();
+
+
+app.MapHealthChecks("/health", new HealthCheckOptions()
+{
+    Predicate = _ => true,
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+});
+app.MapHealthChecks("/health/custom", new HealthCheckOptions()
+{
+    Predicate = (check) => check.Tags.Contains("custom"),
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+});
+app.MapHealthChecksUI();
+
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    Console.WriteLine("Application has started");
+    logger.LogInformation("App is Running : " + builder.Environment.EnvironmentName);
+});
+
+GlobalJobFilters.Filters.Add(new AutomaticRetryAttribute { Attempts = 0 });
 
 app.Run();
