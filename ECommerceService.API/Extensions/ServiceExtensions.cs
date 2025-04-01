@@ -147,10 +147,6 @@ namespace ECommerceService.API.Extensions
                     .AddScoped<IEmailService, EmailService>()
                     .AddScoped<INotificationService, NotificationService>()
                     .AddScoped<IOrderService, OrderService>();
-
-
-
-
     }
 
 }

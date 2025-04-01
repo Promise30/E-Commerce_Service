@@ -17,8 +17,8 @@ namespace ECommerceService.API.Extensions
             var password = emailSettings["Password"];
 
             services.AddFluentEmail(defaultFromEmail, defaultFromName)
-                //.AddSmtpSender(host, port, userName, password);  production
-                .AddSmtpSender(host, port)
+                .AddSmtpSender(host, port, userName, password)
+                //.AddSmtpSender(host, port)
                 .AddRazorRenderer();
 
         }
