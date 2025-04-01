@@ -6,25 +6,26 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ECommerceService.API.Data
 {
-    public class ECommerceDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>
+    public class ECommerceDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, string>
     {
         public ECommerceDbContext(DbContextOptions<ECommerceDbContext> options) : base(options)
         {
         }
         public DbSet<Product> Products => Set<Product>();
         public DbSet<Category> Categories => Set<Category>();
+        public DbSet<CartItem> CartItems => Set<CartItem>();
+        public DbSet<Cart> Carts => Set<Cart>();
+        public DbSet<Order> Orders => Set<Order>();
+        public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+        public DbSet<ApplicationUser> ApplicationUsers => Set<ApplicationUser>();
+
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            // modelBuilder.ApplyConfigurationsFromAssembly(typeof(ECommerceDbContext).Assembly);
-            modelBuilder.Entity<Product>().Property(p=> p.Name).IsRequired().HasMaxLength(100);
-            modelBuilder.Entity<Product>().Property(p=> p.Description).HasMaxLength(500);
-            modelBuilder.Entity<Product>().Property(p => p.Price).HasPrecision(18, 2);
-            modelBuilder.Entity<Category>().Property(c=> c.Name).IsRequired().HasMaxLength(100);
-            modelBuilder.Entity<Category>().Property(c=> c.Description).HasMaxLength(500);
+            base.OnModelCreating(modelBuilder);
 
-            modelBuilder.Entity<Product>().HasOne(p=> p.Category).WithMany(c=> c.Products).HasForeignKey(p=> p.CategoryId);
-
-            base.OnModelCreating(modelBuilder); 
+            
+            modelBuilder.ApplyConfigurationsFromAssembly(typeof(ECommerceDbContext).Assembly);
         }
     }
 }
