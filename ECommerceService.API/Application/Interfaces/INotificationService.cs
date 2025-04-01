@@ -1,5 +1,4 @@
 ﻿using ECommerceService.API.Events;
-using ECommerceService.API.Notifications;
 
 namespace ECommerceService.API.Application.Interfaces
 {
