@@ -26,6 +26,7 @@ msbuild.err
 msbuild.wrn
 # Visual Studio
 .vs/
+Logs/
 # Compiled Source
 *.com
 *.class
