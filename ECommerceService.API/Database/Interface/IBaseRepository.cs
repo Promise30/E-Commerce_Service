@@ -13,15 +13,10 @@ namespace ECommerceService.API.Database.Interface
         Task<T> GetByIdAsync(Tkey id);
         Task<T> GetAsync(Expression<Func<T, bool>> filter);
 
-        Task<T> GetLastItemAsync();
-        Task<Tkey> GetLastItemId();
-
         Task<IEnumerable<T>> GetAllAsync(Expression<Func<T, bool>> filter = null);
         Task<IEnumerable<T>> GetAllAsync(Expression<Func<T, bool>> filter = null, Expression<Func<T, object>> includeProperty = null);
-        Task<IEnumerable<T>> GetAllAsync(Expression<Func<T, bool>> filter = null, params Expression<Func<T, object>>[] includeProperties);
         Task<PagedList<T>> GetAllPaginatedAsync(RequestParameters parameter, Expression<Func<T, bool>> filter = null);
-        Task<PagedList<T>> GetAllPaginatedAsync(RequestParameters parameter, SortParameters sortParams, Expression<Func<T, bool>> filter = null);
-        Task<PagedList<T>> GetAllPaginatedAsync(RequestParameters parameter, List<T> entity, Expression<Func<T, bool>> filter = null);
+        Task<PagedList<T>> GetAllPaginatedAsync(RequestParameters requestParameters, List<T> entities);
 
         Task SaveChangesAsync(CancellationToken ct = default);
     }
