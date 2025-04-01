@@ -1,6 +1,6 @@
 ﻿using ECommerceService.API.Application.Interfaces;
-using ECommerceService.API.Data.Dtos;
-using Microsoft.AspNetCore.Http;
+using ECommerceService.API.Data.Dtos.Auth;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ECommerceService.API.Controllers
@@ -14,18 +14,21 @@ namespace ECommerceService.API.Controllers
         {
             _roleManagementService = roleManagementService;
         }
+        [Authorize]
         [HttpGet]
         public async Task<IActionResult> GetAllRolesAsync()
         {
             var response = await _roleManagementService.GetAllRolesAsync();
             return StatusCode((int)response.StatusCode, response);
         }
+        [Authorize]
         [HttpGet("{roleId}")]
-        public async Task<IActionResult> GetRole(string roleId)
+        public async Task<IActionResult> GetRole(Guid roleId)
         {
             var response = await _roleManagementService.GetRoleAsync(roleId);
             return StatusCode((int)response.StatusCode, response);
         }
+        [Authorize(Roles = "Admin")]
         [Route("get-users-by-role")]
         [HttpGet]
         public async Task<IActionResult> GetUsersByRole([FromQuery] string roleName)
@@ -33,20 +36,23 @@ namespace ECommerceService.API.Controllers
             var response = await _roleManagementService.GetUsersByRoleAsync(roleName);
             return StatusCode((int)response.StatusCode, response);
         }
+        [Authorize(Roles = "Admin")]
         [Route("add-user-to-role")]
-        [HttpGet]
-        public async Task<IActionResult> AddUserToRole([FromQuery] string userId, string roleName)
+        [HttpPost]
+        public async Task<IActionResult> AddUserToRole([FromQuery] Guid userId, string roleName)
         {
             var response = await _roleManagementService.AddUserToRoleAsync(roleName, userId);
             return StatusCode((int)response.StatusCode, response);
         }
+        [Authorize(Roles = "Admin")]
         [Route("remove-user-from-role")]
-        [HttpGet]
-        public async Task<IActionResult> RemoveUserFromRole([FromQuery] string userId, string roleName)
+        [HttpPost]
+        public async Task<IActionResult> RemoveUserFromRole([FromQuery] Guid userId, string roleName)
         {
             var response = await _roleManagementService.RemoveUserFromRoleAsync(roleName, userId);
             return StatusCode((int)response.StatusCode, response);
         }
+        [Authorize(Roles = "Admin")]
         [HttpPost]
         public async Task<IActionResult> CreateRole([FromBody] CreateRoleDto role)
         {
@@ -57,8 +63,9 @@ namespace ECommerceService.API.Controllers
             var response = await _roleManagementService.CreateRoleAsync(role);
             return StatusCode((int)response.StatusCode, response);
         }
+        [Authorize(Roles = "Admin")]
         [HttpPut("{roleId}")]
-        public async Task<IActionResult> UpdateRole(string roleId, [FromBody] UpdateRoleDto role)
+        public async Task<IActionResult> UpdateRole(Guid roleId, [FromBody] UpdateRoleDto role)
         {
             if(!ModelState.IsValid)
             {
@@ -67,8 +74,9 @@ namespace ECommerceService.API.Controllers
             var response = await _roleManagementService.UpdateRoleAsync(roleId, role);
             return StatusCode((int)response.StatusCode, response);
         }
+        [Authorize(Roles = "Admin")]
         [HttpDelete("{roleId}")]
-        public async Task<IActionResult> DeleteRole(string roleId)
+        public async Task<IActionResult> DeleteRole(Guid roleId)
         {
             var response = await _roleManagementService.DeleteRoleAsync(roleId);
             return StatusCode((int)response.StatusCode, response);
