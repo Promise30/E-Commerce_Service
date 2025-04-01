@@ -1,11 +1,15 @@
 ﻿using AutoMapper;
 using ECommerceService.API.Application.Interfaces;
-using ECommerceService.API.Data.Dtos;
+using ECommerceService.API.Data.Dtos.Product;
 using ECommerceService.API.Database.Interface;
 using ECommerceService.API.Domain.Entities;
 using ECommerceService.API.Helpers;
+using k8s.Models;
+using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
 using System.Net;
+using System.Transactions;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace ECommerceService.API.Application.Implementation
 {
@@ -24,7 +28,13 @@ namespace ECommerceService.API.Application.Implementation
         {
             try
             {
-                Product productToCreate = _mapper.Map<Product>(createProduct);
+                var productExists = await _productRepository.GetAsync(p => p.Name == createProduct.Name);
+                if (productExists != null)
+                {
+                    return APIResponse<ProductDto>.Create(HttpStatusCode.Conflict, "Product already exists", null);
+                }
+
+                var productToCreate = _mapper.Map<Product>(createProduct);
                 await _productRepository.CreateAsync(productToCreate);
                 await _productRepository.SaveChangesAsync();
                 var productToReturn = _mapper.Map<ProductDto>(productToCreate);
@@ -38,14 +48,14 @@ namespace ECommerceService.API.Application.Implementation
             }
         }
 
-        public async Task<APIResponse<object>> DeleteProduct(Guid productId)
+        public async Task<APIResponse<object>> DeleteProduct(int productId)
         {
             try
             {
                 var product = await _productRepository.GetByIdAsync(productId);
                 if (product == null)
                 {
-                    return APIResponse<object>.Create(HttpStatusCode.NotFound, "Product not found", null);
+                    return APIResponse<object>.Create(HttpStatusCode.NotFound, "Product not found", new Product());
                 }
                 await _productRepository.DeleteAsync(productId);
                 await _productRepository.SaveChangesAsync();
@@ -55,7 +65,7 @@ namespace ECommerceService.API.Application.Implementation
             catch (Exception ex)
             {
                 _logger.LogError($"An error occurred when trying to delete a product: {ex.Message}");
-                return APIResponse<object>.Create(HttpStatusCode.InternalServerError, "An error occurred when trying to delete product", null);
+                return APIResponse<object>.Create(HttpStatusCode.InternalServerError, "An error occurred when trying to delete product", null!);
             }
         }
 
@@ -74,22 +84,85 @@ namespace ECommerceService.API.Application.Implementation
             }
         }
 
-        public async Task<APIResponse<PagedList<ProductDto>>> GetAllProductsPaginatedAsync(RequestParameters requestParameters, Expression<Func<Product, bool>> filter = null)
+        public async Task<APIResponse<object>> GetAllProductsAsync(RequestParameters requestParameters, bool isPaginated, Sorting? sortParameter, FilterParameters? filterParameters)
         {
             try
-            {
-                var products = await _productRepository.GetAllPaginatedAsync(requestParameters, filter);
-                var productsToReturn = _mapper.Map<PagedList<ProductDto>>(products);
-                return APIResponse<PagedList<ProductDto>>.Create(HttpStatusCode.OK, "Products retrieved successfully", productsToReturn);
+            {   
+                var products = await _productRepository.GetAllAsync(null);
+                if (products == null)
+                {
+                    return APIResponse<object>.Create(HttpStatusCode.NotFound, "Products not found", null);
+                }
+
+                // filtering
+                if (filterParameters != null)
+                {
+                    if (!string.IsNullOrEmpty(filterParameters.SearchTerm))
+                    {
+                        products = products.Where(product => product.Name.Contains(filterParameters.SearchTerm.ToLower(), StringComparison.OrdinalIgnoreCase));
+                    }
+                    if (filterParameters.MinAmount.HasValue)
+                    {
+                        products = products.Where(product => product.Price >= filterParameters.MinAmount);
+                    }
+                    if (filterParameters.MaxAmount.HasValue)
+                    {
+                        products = products.Where(product => product.Price <= filterParameters.MaxAmount);
+                    }
+                }
+
+                // sorting
+                switch (sortParameter.SortBy?.ToLower())
+                {
+                    case "name":
+                        products = sortParameter.IsAscending ? products.OrderBy(product => product.Name) : products.OrderByDescending(product => product.Name);
+                        break;
+                    case "description":
+                        products = sortParameter.IsAscending ? products.OrderBy(product => product.Description) : products.OrderByDescending(product => product.Description);
+                        break;
+                    case "price":
+                        products = sortParameter.IsAscending ? products.OrderBy(product => product.Price) : products.OrderByDescending(product => product.Price);
+                        break;
+                    case "stockquantity":
+                        products = sortParameter.IsAscending ? products.OrderBy(product => product.StockQuantity) : products.OrderByDescending(product => product.StockQuantity);
+                        break;
+                    default:
+                        products = sortParameter.IsAscending ? products.OrderBy(product => product.CreatedDate) : products.OrderByDescending(product => product.CreatedDate);
+                        break;
+                }
+
+                // pagination
+                if (!isPaginated)
+                {
+                    var productsToReturn = _mapper.Map<IEnumerable<ProductDto>>(products);
+                    return APIResponse<object>.Create(HttpStatusCode.OK, "Products retrieved successfully", productsToReturn);
+                }
+                else
+                {
+                    var pagedProducts = await _productRepository.GetAllPaginatedAsync(requestParameters, products.ToList());
+                    var result = pagedProducts.Data.Select(product => _mapper.Map<ProductDto>(product));
+                    var responseToReturn = new PagedResponse<IEnumerable<ProductDto>>()
+                    {
+                        Data = result,
+                        NextPage = pagedProducts.MetaData.HasNext ? pagedProducts.MetaData.CurrentPage + 1 : null,
+                        PreviousPage = pagedProducts.MetaData.HasPrevious ? pagedProducts.MetaData.CurrentPage - 1 : null,
+                        PageSize = pagedProducts.MetaData.PageSize,
+                        TotalRecords = pagedProducts.MetaData.TotalCount,
+                        TotalPages = pagedProducts.MetaData.TotalPages,
+                        PageNumber = pagedProducts.MetaData.CurrentPage
+                    };
+                    return APIResponse<object>.Create(HttpStatusCode.OK, "Products retrieved successfully", responseToReturn);
+
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogError($"An error occurred when trying to retrieve products: {ex.Message}");
-                return APIResponse<PagedList<ProductDto>>.Create(HttpStatusCode.InternalServerError, "An error occurred when trying to retrieve products", null);
+                return APIResponse<object>.Create(HttpStatusCode.InternalServerError, "An error occurred when trying to retrieve products", null);
             }
         }
 
-        public async Task<APIResponse<ProductDto>> GetProductAsync(Guid productId)
+        public async Task<APIResponse<ProductDto>> GetProductAsync(int productId)
         {
             try
             {
@@ -108,7 +181,7 @@ namespace ECommerceService.API.Application.Implementation
             }
         }
 
-        public async Task<APIResponse<object>> UpdateProduct(Guid productId, UpdateProductDto updateProduct)
+        public async Task<APIResponse<object>> UpdateProduct(int productId, UpdateProductDto updateProduct)
         {
             try
             {

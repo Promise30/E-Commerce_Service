@@ -1,6 +1,8 @@
 ﻿using AutoMapper;
 using ECommerceService.API.Application.Interfaces;
-using ECommerceService.API.Data.Dtos;
+using ECommerceService.API.Data.Dtos.Category;
+using ECommerceService.API.Data.Dtos.Product;
+using ECommerceService.API.Database.Implementation;
 using ECommerceService.API.Database.Interface;
 using ECommerceService.API.Domain.Entities;
 using ECommerceService.API.Helpers;
@@ -24,6 +26,12 @@ namespace ECommerceService.API.Application.Implementation
         {
             try
             {
+                var categoryExists = await _categoryRepository.GetAsync(c => c.Name == createCategory.Name);
+                if (categoryExists != null)
+                {
+                    return APIResponse<CategoryDto>.Create(HttpStatusCode.BadRequest, "Category already exists", null);
+                }
+
                 Category categoryToCreate = _mapper.Map<Category>(createCategory);
                 await _categoryRepository.CreateAsync(categoryToCreate);
                 await _categoryRepository.SaveChangesAsync();
@@ -73,20 +81,65 @@ namespace ECommerceService.API.Application.Implementation
 
             }
         }
-        public async Task<APIResponse<PagedList<CategoryDto>>> GetCategoriesPaginatedAsync(RequestParameters requestParameters, Expression<Func<Category, bool>> filter=null)
+        public async Task<APIResponse<object>> GetAllCategoriesAsync(RequestParameters requestParameters, bool isPaginated, Sorting? sortingParameters, string searchParameter)
         {
             try
             {
-                var categories = await _categoryRepository.GetAllPaginatedAsync(requestParameters, filter);
-                var categoriesToReturn = _mapper.Map<PagedList<CategoryDto>>(categories);
-                return APIResponse<PagedList<CategoryDto>>.Create(HttpStatusCode.OK, "Categories retrieved successfully", categoriesToReturn);
+                var categories = await _categoryRepository.GetAllAsync(null, includeProperty: c=> c.Products);
+                if (categories == null)
+                {
+                    return APIResponse<object>.Create(HttpStatusCode.NotFound, "Categories not found", null);
+                }
 
+                //searching
+                if (!string.IsNullOrEmpty(searchParameter))
+                {
+                    categories = categories.Where(c => c.Name.ToLower().Contains(searchParameter.ToLower()) 
+                                                 || c.Description.ToLower().Contains(searchParameter.ToLower()));
+                }
+
+                //sorting
+                switch (sortingParameters.SortBy?.ToLower())
+                {
+                    case "name":
+                        categories = sortingParameters.IsAscending == true ? categories.OrderBy(c => c.Name) : categories.OrderByDescending(c => c.Name);
+                        break;
+                    case "description":
+                        categories = sortingParameters.IsAscending == true ? categories.OrderBy(c => c.Description) : categories.OrderByDescending(c => c.Description);
+                        break;
+                    default:
+                        categories = sortingParameters.IsAscending == true ? categories.OrderBy(c => c.CreatedDate) : categories.OrderByDescending(c => c.CreatedDate);
+                        break;
+                }
+
+                // pagination
+                if (!isPaginated)
+                {
+                    var categoriesToReturn = _mapper.Map<IEnumerable<CategoryDto>>(categories);
+                    return APIResponse<object>.Create(HttpStatusCode.OK, "Categories retrieved successfully", categoriesToReturn);
+                }
+                else
+                {
+                    var pagedCategories = await _categoryRepository.GetAllPaginatedAsync(requestParameters, categories.ToList());
+                    var result = pagedCategories.Data.Select(category => _mapper.Map<CategoryDto>(category));
+                    var responseToReturn = new PagedResponse<IEnumerable<CategoryDto>>()
+                    {
+                        Data = result,
+                        NextPage = pagedCategories.MetaData.HasNext ? pagedCategories.MetaData.CurrentPage + 1 : null,
+                        PreviousPage = pagedCategories.MetaData.HasPrevious ? pagedCategories.MetaData.CurrentPage - 1 : null,
+                        PageSize = pagedCategories.MetaData.PageSize,
+                        TotalRecords = pagedCategories.MetaData.TotalCount,
+                        TotalPages = pagedCategories.MetaData.TotalPages,
+                        PageNumber = pagedCategories.MetaData.CurrentPage
+                    };
+                    return APIResponse<object>.Create(HttpStatusCode.OK, "Categories retrieved successfully", responseToReturn);
+
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogError($"An error occurred when trying to retrieve categories: {ex.Message}");
-                return APIResponse<PagedList<CategoryDto>>.Create(HttpStatusCode.InternalServerError, "An error occurred when trying to retrieve categories", null);
-
+                return APIResponse<object>.Create(HttpStatusCode.InternalServerError, "An error occurred when trying to retrieve categories", null);
             }
         }
 

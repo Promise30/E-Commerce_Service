@@ -1,6 +1,6 @@
 ﻿using AutoMapper;
 using ECommerceService.API.Application.Interfaces;
-using ECommerceService.API.Data.Dtos;
+using ECommerceService.API.Data.Dtos.Auth;
 using ECommerceService.API.Domain.Entities;
 using ECommerceService.API.Helpers;
 using Microsoft.AspNetCore.Identity;
@@ -23,7 +23,7 @@ namespace ECommerceService.API.Application.Implementation
             _userManager = userManager;
         }
 
-        public async Task<APIResponse<object>> AddUserToRoleAsync(string roleName, string userId)
+        public async Task<APIResponse<object>> AddUserToRoleAsync(string roleName, Guid userId)
         {
             try
             {
@@ -89,11 +89,11 @@ namespace ECommerceService.API.Application.Implementation
             }
         }
 
-        public async Task<APIResponse<ApplicationRoleDto>> DeleteRoleAsync(string roleId)
+        public async Task<APIResponse<ApplicationRoleDto>> DeleteRoleAsync(Guid roleId)
         {
             try
             {
-                var role = await _roleManager.FindByIdAsync(roleId);
+                var role = await _roleManager.FindByIdAsync(roleId.ToString());
                 if (role == null)
                 {
                     return APIResponse<ApplicationRoleDto>.Create(HttpStatusCode.NotFound, "Role not found", null);
@@ -133,11 +133,11 @@ namespace ECommerceService.API.Application.Implementation
             }
         }
 
-        public async Task<APIResponse<ApplicationRoleDto>> GetRoleAsync(string roleId)
+        public async Task<APIResponse<ApplicationRoleDto>> GetRoleAsync(Guid roleId)
         {
             try
             {
-                var role = await _roleManager.FindByIdAsync(roleId);
+                var role = await _roleManager.FindByIdAsync(roleId.ToString());
                 if (role == null)
                 {
                     return APIResponse<ApplicationRoleDto>.Create(HttpStatusCode.NotFound, "Role not found", null);
@@ -178,7 +178,7 @@ namespace ECommerceService.API.Application.Implementation
             }
         }
 
-        public async Task<APIResponse<object>> RemoveUserFromRoleAsync(string roleName, string userId)
+        public async Task<APIResponse<object>> RemoveUserFromRoleAsync(string roleName, Guid userId)
         {
             try
             {
@@ -209,11 +209,11 @@ namespace ECommerceService.API.Application.Implementation
             }
         }
 
-        public async Task<APIResponse<ApplicationRoleDto>> UpdateRoleAsync(string roleId, UpdateRoleDto role)
+        public async Task<APIResponse<ApplicationRoleDto>> UpdateRoleAsync(Guid roleId, UpdateRoleDto role)
         {
             try
             {
-                var roleToUpdate = await _roleManager.FindByIdAsync(roleId);
+                var roleToUpdate = await _roleManager.FindByIdAsync(roleId.ToString());
                 if (roleToUpdate == null)
                 {
                     return APIResponse<ApplicationRoleDto>.Create(HttpStatusCode.NotFound, "Role not found", null);

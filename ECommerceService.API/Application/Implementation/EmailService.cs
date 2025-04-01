@@ -1,6 +1,7 @@
 ﻿using ECommerceService.API.Application.Interfaces;
-using ECommerceService.API.Notifications;
+using ECommerceService.API.Helpers;
 using FluentEmail.Core;
+using Microsoft.AspNetCore.SignalR.Protocol;
 
 namespace ECommerceService.API.Application.Implementation
 {
@@ -12,12 +13,20 @@ namespace ECommerceService.API.Application.Implementation
         {
             _fluentEmail = fluentEmail;
         }
-
         public async Task Send(EmailMetadata emailMetadata)
         {
             await _fluentEmail.To(emailMetadata.ToAddress)
                 .Subject(emailMetadata.Subject)
                 .Body(emailMetadata.Body)
+                //.UsingTemplateFromFile(template, eventType)
+                .SendAsync();
+        }
+        public async Task Send(EmailMetadata emailMetadata, string template, object eventType)
+        {
+            await _fluentEmail.To(emailMetadata.ToAddress)
+                .Subject(emailMetadata.Subject)
+                //.Body(emailMetadata.Body)
+                .UsingTemplateFromFile(template, eventType)
                 .SendAsync();
         }
     }
