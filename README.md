@@ -32,6 +32,7 @@ b. Run the following command to restore the dependencies:
     ```
     dotnet restore
     ```
+c. Modify the configuration in appsettings.Development.json to your personal configuration details
  
 3. **Update the database**:
 a. **Update the database connection string**:
