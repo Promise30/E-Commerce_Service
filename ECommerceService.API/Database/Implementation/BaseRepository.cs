@@ -4,7 +4,6 @@ using ECommerceService.API.Domain.Entities;
 using ECommerceService.API.Helpers;
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
-using static ECommerceService.API.Helpers.SortParameters;
 
 namespace ECommerceService.API.Database.Implementation
 {
@@ -73,27 +72,6 @@ namespace ECommerceService.API.Database.Implementation
             var source = _dbSet.AsNoTracking();
             return await PagedList<T>.ToPagedList(source, filter, parameter);
         }
-        public async Task<PagedList<T>> GetAllPaginatedAsync(RequestParameters parameter, SortParameters sortParams, Expression<Func<T, bool>> filter = null)
-        {
-            var source = _dbSet.AsNoTracking();
-            if(sortParams != null)
-            {
-                // check sort type
-                if (sortParams.SortType == SortingType.Ascending)
-                    source.OrderBy(x => x.CreatedDate);
-                else
-                    source = source.OrderByDescending(x => x.CreatedDate);
-            }
-            else
-            {
-                source = source.OrderByDescending(x => x.CreatedDate);
-            }
-            return await PagedList<T>.ToPagedList(source, filter, parameter);
-        }
-        public async Task<PagedList<T>> GetAllPaginatedAsync(RequestParameters parameter, List<T> entity, Expression<Func<T, bool>> filter = null)
-        {
-            return await PagedList<T>.ToPagedListAsync(entity, parameter);
-        }
         public async Task<T> GetAsync(Expression<Func<T, bool>> filter)
         {
             return await _dbSet.FirstOrDefaultAsync(filter);
@@ -101,28 +79,6 @@ namespace ECommerceService.API.Database.Implementation
         public async Task<T> GetByIdAsync(Tkey id)
         {
             return await _dbSet.FindAsync(id);
-        }
-        public async Task<T> GetLastItemAsync()
-        {
-            var entityType = typeof(T);
-            var itemIdProperty = entityType.GetProperty("Id");
-            if (itemIdProperty == null)
-            {
-                throw new ArgumentException("Entity must have an Id property");
-            }
-
-            // Use dynamic LINQ to order by the Id property
-            var query = _context.Set<T>().AsQueryable();
-            var orderedQuery = query.OrderByDescending(e => EF.Property<object>(e, "Id"));
-
-            return await orderedQuery.FirstOrDefaultAsync();
-        }
-        public async Task<Tkey> GetLastItemId()
-        {
-            var entity = await GetLastItemAsync();
-            if (entity == null)
-                return default(Tkey);
-            return entity.Id;   
         }
         public async Task SaveChangesAsync(CancellationToken ct = default)
         {
@@ -133,6 +89,10 @@ namespace ECommerceService.API.Database.Implementation
             _dbSet.Attach(entity);
             _context.Entry(entity).State = EntityState.Modified;
             return Task.CompletedTask;
+        }
+        public async Task<PagedList<T>> GetAllPaginatedAsync(RequestParameters requestParameters, List<T> entities)
+        {
+            return await PagedList<T>.ToPagedListAsync(entities, requestParameters);
         }
     }
 }
