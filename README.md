@@ -16,8 +16,8 @@ ECommerceService.API is an API project built on .NET 8.0. It provides a robust b
 
 ### Prerequisites
 - .NET 8.0 SDK
-- SQL Server or SQLite
-- RabbitMQ (for message queuing)
+- SQL Server 
+- HangFire (for background jobs and scheduling)
 - SMTP server (for sending emails)
 
 ### Installation
